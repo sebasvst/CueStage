@@ -1,0 +1,42 @@
+CUESTAGE
+Música y sonidos para actuar en vivo
+
+CueStage reproduce una música de fondo y te deja lanzar los sonidos
+justo en el momento en que hacen falta, con botones grandes y atajos
+de teclado.
+
+Todo ocurre en este equipo: la aplicación no se conecta a internet ni
+envía información a ningún servidor. Tus presentaciones y tus archivos
+de audio se guardan en la carpeta de datos de la aplicación, en
+
+    %APPDATA%\com.cuestage.desktop\projects
+
+
+PARA EMPEZAR
+  1. Abre CueStage y crea una presentación.
+  2. Añade la música y los sonidos de la función.
+  3. Pulsa "Ir a En vivo" y toca los botones.
+
+  Al tocar un botón que ya está sonando, se para. Funciona igual con
+  el ratón y con el teclado.
+
+
+REQUISITOS
+  · Windows 10 (1809 o superior) o Windows 11, de 64 bits.
+  · Microsoft Edge WebView2 Runtime. Ya viene incluido en Windows 11;
+    en Windows 10 puede descargarlo desde la web de Microsoft.
+  · Un dispositivo de salida de sonido (altavoces o auriculares).
+
+
+PRIVACIDAD
+  CueStage funciona completamente en local. No hay cuentas, ni
+  suscripciones, ni publicidad, ni analítica. No se envía nada a
+  internet.
+
+
+LICENCIA
+  CueStage se distribuye bajo la licencia MIT: puede usarlo y
+  modificarlo libremente, incluso con fines comerciales, siempre que
+  conserve este aviso de copyright.
+
+  EL SOFTWARE SE PROPORCIONA "COMO ESTÁ", SIN GARANTÍA DE NINGÚN TIPO.

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CueStage",
+  "version": "0.1.0",
+  "identifier": "com.cuestage.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build:frontend",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "CueStage",
+        "width": 1360,
+        "height": 880,
+        "minWidth": 960,
+        "minHeight": 620,
+        "resizable": true,
+        "center": true,
+        "visible": true,
+        "dragDropEnabled": true,
+        "titleBarStyle": "Visible"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: asset: http://asset.localhost; media-src 'self' blob: asset: http://asset.localhost; connect-src 'self' ipc: http://ipc.localhost asset: http://asset.localhost http://localhost:1420 ws://localhost:1420; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'",
+      "freezePrototype": true,
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "copyright": "CueStage",
+    "category": "Productivity",
+    "licenseFile": "windows/LICENCIA.txt",
+    "shortDescription": "Control de música y efectos de sonido en vivo",
+    "longDescription": "CueStage reproduce una música principal y dispara efectos de sonido desde pads y atajos de teclado durante presentaciones en vivo. Funciona totalmente en local.",
+    "publisher": "CueStage",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["Spanish", "English"],
+        "displayLanguageSelector": false,
+        "template": "windows/installer.nsi",
+        "headerImage": "windows/header.bmp",
+        "sidebarImage": "windows/sidebar.bmp",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "uninstallerHeaderImage": "windows/header.bmp",
+        "customLanguageFiles": {
+          "Spanish": "windows/Spanish.nsh"
+        }
+      }
+    }
+  }
+}

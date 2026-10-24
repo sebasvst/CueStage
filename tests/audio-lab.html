@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>CueStage · laboratorio de audio real</title>
+    <style>
+      body {
+        font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+        margin: 0;
+        padding: 24px;
+        background: #f2f2f5;
+        color: #1d1d1f;
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      p.lead { margin: 0 0 20px; color: #6b6b70; font-size: 14px; max-width: 70ch; }
+      #results {
+        white-space: pre-wrap;
+        font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+        font-size: 12.5px;
+        background: #fff;
+        border: 1px solid rgba(0,0,0,0.1);
+        border-radius: 12px;
+        padding: 16px;
+        line-height: 1.5;
+      }
+      .pass { color: #2c8449; font-weight: 600; }
+      .fail { color: #cf3826; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>CueStage · laboratorio de audio real</h1>
+    <p class="lead">
+      Comprueba el motor real de CueStage sobre el motor Web Audio real del navegador:
+      decodificación de MP3, WAV y OGG, mezcla simultánea, fundidos, volúmenes
+      independientes, saturación y salida real al dispositivo.
+    </p>
+    <pre id="results">Ejecutando…</pre>
+
+    <script type="module">
+      import { AudioEngine } from '/src/audio/AudioEngine.ts';
+
+      const results = [];
+      let failures = 0;
+
+      function report(name, ok, detail) {
+        if (!ok) failures += 1;
+        results.push({ name, ok, detail });
+        const node = document.getElementById('results');
+        const status = ok ? 'PASA' : 'FALLA';
+        const cls = ok ? 'pass' : 'fail';
+        if (node.innerHTML.includes('Ejecutando')) node.innerHTML = '';
+        node.innerHTML += `<span class="${cls}">${status}</span>  ${name}\n        ${detail}\n\n`;
+        node.dataset['done'] = '1';
+        node.dataset['failures'] = String(failures);
+        node.dataset['total'] = String(results.length);
+      }
+
+      // ------------------------------------------------------------ helpers --
+
+      function goertzel(samples, sampleRate, frequency, start, end) {
+        const from = Math.floor(start * sampleRate);
+        const to = Math.min(samples.length, Math.floor(end * sampleRate));
+        const k = (2 * Math.PI * frequency) / sampleRate;
+        const coeff = 2 * Math.cos(k);
+        let s0 = 0;
+        let s1 = 0;
+        let s2 = 0;
+        for (let i = from; i < to; i += 1) {
+          s0 = samples[i] + coeff * s1 - s2;
+          s2 = s1;
+          s1 = s0;
+        }
+        const power = s1 * s1 + s2 * s2 - coeff * s1 * s2;
+        return Math.sqrt(Math.max(0, power) / Math.max(1, to - from));
+      }
+
+      function rms(samples, sampleRate, start, end) {
+        const from = Math.floor(start * sampleRate);
+        const to = Math.min(samples.length, Math.floor(end * sampleRate));
+        let sum = 0;
+        for (let i = from; i < to; i += 1) sum += samples[i] * samples[i];
+        return Math.sqrt(sum / Math.max(1, to - from));
+      }
+
+      function peak(samples) {
+        let max = 0;
+        for (let i = 0; i < samples.length; i += 1) {
+          const value = Math.abs(samples[i]);
+          if (value > max) max = value;
+        }
+        return max;
+      }
+
+      async function fetchBytes(url) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status} al leer ${url}`);
+        return response.arrayBuffer();
+      }
+
+      // ------------------------------------------------- measurable context --
+      // A thin adapter over the real AudioContext whose "destination" is an
+      // AnalyserNode, so the signal that the engine produces can be measured.
+
+      function createMeasurableContext() {
+        const ctx = new AudioContext();
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.connect(ctx.destination);
+
+        const nativeOf = (node) => node.__native;
+
+        const wrapParam = (param) => ({
+          get value() {
+            return param.value;
+          },
+          setValueAtTime: (v, t) => param.setValueAtTime(v, t),
+          linearRampToValueAtTime: (v, t) => param.linearRampToValueAtTime(v, t),
+          exponentialRampToValueAtTime: (v, t) => param.exponentialRampToValueAtTime(v, t),
+          cancelScheduledValues: (t) => param.cancelScheduledValues(t),
+        });
+
+        const wrapGain = (node) => ({
+          __native: node,
+          gain: wrapParam(node.gain),
+          connect: (dest) => node.connect(nativeOf(dest)),
+          disconnect: () => node.disconnect(),
+        });
+
+        const wrapCompressor = (node) => ({
+          __native: node,
+          get threshold() {
+            return node.threshold.value;
+          },
+          set threshold(v) {
+            node.threshold.value = v;
+          },
+          get knee() {
+            return node.knee.value;
+          },
+          set knee(v) {
+            node.knee.value = v;
+          },
+          get ratio() {
+            return node.ratio.value;
+          },
+          set ratio(v) {
+            node.ratio.value = v;
+          },
+          get attack() {
+            return node.attack.value;
+          },
+          set attack(v) {
+            node.attack.value = v;
+          },
+          get release() {
+            return node.release.value;
+          },
+          set release(v) {
+            node.release.value = v;
+          },
+          connect: (dest) => node.connect(nativeOf(dest)),
+          disconnect: () => node.disconnect(),
+        });
+
+        const wrapSource = (node) => {
+          const wrapper = {
+            __native: node,
+            buffer: null,
+            loop: false,
+            playbackRate: 1,
+            onended: null,
+            connect: (dest) => node.connect(nativeOf(dest)),
+            disconnect: () => node.disconnect(),
+            start: (when, offset) => {
+              if (wrapper.buffer) node.buffer = wrapper.buffer;
+              node.loop = wrapper.loop;
+              node.playbackRate.value = wrapper.playbackRate;
+              node.start(when, offset);
+            },
+            stop: (when) => node.stop(when),
+          };
+          return wrapper;
+        };
+
+        const destination = {
+          __native: analyser,
+          connect: () => {},
+          disconnect: () => {},
+        };
+
+        const context = {
+          get currentTime() {
+            return ctx.currentTime;
+          },
+          get sampleRate() {
+            return ctx.sampleRate;
+          },
+          get state() {
+            return ctx.state;
+          },
+          onstatechange: null,
+          destination,
+          createGain: () => wrapGain(ctx.createGain()),
+          createBufferSource: () => wrapSource(ctx.createBufferSource()),
+          createDynamicsCompressor: () => wrapCompressor(ctx.createDynamicsCompressor()),
+          decodeAudioData: async (data) => ctx.decodeAudioData(data),
+          resume: async () => ctx.resume(),
+          suspend: async () => ctx.suspend(),
+          close: async () => ctx.close(),
+        };
+
+        ctx.onstatechange = () => context.onstatechange?.(ctx.state);
+
+        return { context, analyser, raw: ctx };
+      }
+
+      /** RMS measured at the real output of the engine. */
+      function measureOutput(analyser) {
+        const buffer = new Float32Array(analyser.fftSize);
+        analyser.getFloatTimeDomainData(buffer);
+        let sum = 0;
+        for (let i = 0; i < buffer.length; i += 1) sum += buffer[i] * buffer[i];
+        return Math.sqrt(sum / buffer.length);
+      }
+
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      // ---------------------------------------------------- offline renders --
+
+      /** Reproduces the mixing graph of CueStage in an OfflineAudioContext. */
+      async function renderMix({ musicBuffer, effectBuffer, musicGain, effectGain, fadeIn, startEffectAt = 1, limiter = true }) {
+        const sampleRate = 44100;
+        const duration = 3;
+        const context = new OfflineAudioContext(2, sampleRate * duration, sampleRate);
+
+        const master = context.createGain();
+        master.gain.value = 1;
+
+        const musicBus = context.createGain();
+        musicBus.gain.value = musicGain;
+        musicBus.connect(master);
+
+        const effectBus = context.createGain();
+        effectBus.gain.value = effectGain;
+        effectBus.connect(master);
+
+        if (limiter) {
+          const safety = context.createDynamicsCompressor();
+          safety.threshold.value = -6;
+          safety.knee.value = 6;
+          safety.ratio.value = 6;
+          safety.attack.value = 0.004;
+          safety.release.value = 0.18;
+          master.connect(safety);
+          safety.connect(context.destination);
+        } else {
+          master.connect(context.destination);
+        }
+
+        if (musicBuffer) {
+          const musicSource = context.createBufferSource();
+          musicSource.buffer = musicBuffer;
+          const instance = context.createGain();
+          musicSource.connect(instance);
+          instance.connect(musicBus);
+          if (fadeIn > 0) {
+            instance.gain.setValueAtTime(0, 0);
+            instance.gain.linearRampToValueAtTime(1, fadeIn);
+          }
+          musicSource.start(0);
+        }
+
+        if (effectBuffer) {
+          const effectSource = context.createBufferSource();
+          effectSource.buffer = effectBuffer;
+          const instance = context.createGain();
+          effectSource.connect(instance);
+          instance.connect(effectBus);
+          effectSource.start(startEffectAt);
+        }
+
+        const rendered = await context.startRendering();
+        return { samples: rendered.getChannelData(0), sampleRate: rendered.sampleRate };
+      }
+
+      // --------------------------------------------------------------- run ---
+
+      async function run() {
+        // 1. Decoding of the real formats.
+        const probe = new AudioContext();
+        const probeBytes = await fetchBytes('/tests/media/tono-440.wav');
+        const decoded = await probe.decodeAudioData(probeBytes.slice(0));
+        report(
+          'El navegador decodifica un WAV real',
+          decoded.duration > 2.9 && decoded.duration < 3.1,
+          `duración=${decoded.duration.toFixed(3)} s · ${decoded.sampleRate} Hz · ${decoded.numberOfChannels} canales`,
+        );
+
+        const mp3Bytes = await fetchBytes('/tests/media/tono-440.mp3');
+        try {
+          const mp3 = await probe.decodeAudioData(mp3Bytes.slice(0));
+          report(
+            'El navegador decodifica un MP3 real',
+            mp3.duration > 2.8,
+            `duración=${mp3.duration.toFixed(3)} s · ${mp3.sampleRate} Hz`,
+          );
+        } catch (error) {
+          report('El navegador decodifica un MP3 real', false, String(error));
+        }
+
+        const oggBytes = await fetchBytes('/tests/media/tono-220.ogg');
+        try {
+          const ogg = await probe.decodeAudioData(oggBytes.slice(0));
+          report(
+            'El navegador decodifica un OGG real',
+            ogg.duration > 1.8,
+            `duración=${ogg.duration.toFixed(3)} s · ${ogg.sampleRate} Hz`,
+          );
+        } catch (error) {
+          report('El navegador decodifica un OGG real', false, String(error));
+        }
+
+        const clickBytes = await fetchBytes('/tests/media/clic.wav');
+        const click = await probe.decodeAudioData(clickBytes.slice(0));
+        report(
+          'El navegador decodifica un efecto muy corto',
+          click.duration > 0.1 && click.duration < 0.2,
+          `duración=${click.duration.toFixed(3)} s · ${click.numberOfChannels} canal(es)`,
+        );
+
+        const musicBuffer = await probe.decodeAudioData((await fetchBytes('/tests/media/tono-440.wav')).slice(0));
+        const effectBuffer = await probe.decodeAudioData((await fetchBytes('/tests/media/tono-220.wav')).slice(0));
+        await probe.close();
+
+        // 2. Mixing behaviour (sample level, offline render).
+        const mixed = await renderMix({
+          musicBuffer,
+          effectBuffer,
+          musicGain: 1,
+          effectGain: 1,
+          fadeIn: 0,
+        });
+
+        const musicOnly = goertzel(mixed.samples, mixed.sampleRate, 440, 0.2, 0.9);
+        const effectBefore = goertzel(mixed.samples, mixed.sampleRate, 220, 0.2, 0.9);
+        const musicDuring = goertzel(mixed.samples, mixed.sampleRate, 440, 1.2, 1.9);
+        const effectDuring = goertzel(mixed.samples, mixed.sampleRate, 220, 1.2, 1.9);
+
+        report(
+          'La música sigue sonando mientras se dispara un efecto',
+          musicDuring > musicOnly * 0.4 && effectDuring > effectBefore * 5,
+          `440 Hz: ${musicOnly.toFixed(4)} → ${musicDuring.toFixed(4)} · ` +
+            `220 Hz: ${effectBefore.toFixed(4)} → ${effectDuring.toFixed(4)}`,
+        );
+
+        report(
+          'Dos fuentes simultáneas se mezclan sin cancelarse',
+          musicDuring > 0.05 && effectDuring > 0.05,
+          `440 Hz=${musicDuring.toFixed(4)} · 220 Hz=${effectDuring.toFixed(4)}`,
+        );
+
+        // Bus-level independence, measured without the safety limiter so the
+        // two gains can be compared directly.
+        const raw = await renderMix({
+          musicBuffer,
+          effectBuffer,
+          musicGain: 1,
+          effectGain: 1,
+          fadeIn: 0,
+          limiter: false,
+        });
+        const rawQuiet = await renderMix({
+          musicBuffer,
+          effectBuffer,
+          musicGain: 1,
+          effectGain: 0.25,
+          fadeIn: 0,
+          limiter: false,
+        });
+        const effectLoud = goertzel(raw.samples, raw.sampleRate, 220, 1.2, 1.9);
+        const effectQuiet = goertzel(rawQuiet.samples, rawQuiet.sampleRate, 220, 1.2, 1.9);
+        const musicLoud = goertzel(raw.samples, raw.sampleRate, 440, 1.2, 1.9);
+        const musicQuiet = goertzel(rawQuiet.samples, rawQuiet.sampleRate, 440, 1.2, 1.9);
+
+        report(
+          'El volumen de los efectos es independiente de la música',
+          Math.abs(effectQuiet / effectLoud - 0.25) < 0.05 &&
+            Math.abs(musicQuiet - musicLoud) < musicLoud * 0.08,
+          `efecto ${effectLoud.toFixed(4)} → ${effectQuiet.toFixed(4)} (×0,25) · ` +
+            `música ${musicLoud.toFixed(4)} → ${musicQuiet.toFixed(4)}`,
+        );
+
+        const faded = await renderMix({
+          musicBuffer,
+          effectBuffer: null,
+          musicGain: 1,
+          effectGain: 1,
+          fadeIn: 0.5,
+        });
+        const early = rms(faded.samples, faded.sampleRate, 0.02, 0.18);
+        const late = rms(faded.samples, faded.sampleRate, 0.7, 0.9);
+        report(
+          'El fundido de entrada sube de forma progresiva',
+          early < late * 0.3,
+          `RMS inicial=${early.toFixed(5)} · RMS final=${late.toFixed(5)}`,
+        );
+
+        const maxPeak = peak(mixed.samples);
+        report(
+          'La mezcla no satura digitalmente',
+          maxPeak <= 1.0001,
+          `pico=${maxPeak.toFixed(4)} (límite 1,0)`,
+        );
+
+        const short = await renderMix({
+          musicBuffer: null,
+          effectBuffer: click,
+          musicGain: 1,
+          effectGain: 1,
+          fadeIn: 0,
+          startEffectAt: 0,
+        });
+        const clickEnergy = rms(short.samples, short.sampleRate, 0.0, 0.11);
+        report(
+          'Un efecto muy corto se reproduce íntegro',
+          clickEnergy > 0.05,
+          `RMS del clic=${clickEnergy.toFixed(5)}`,
+        );
+
+        // 3. The real CueStage engine, with the real output measured.
+        const { context: measurable, analyser, raw: rawContext } = createMeasurableContext();
+        const engine = new AudioEngine(() => measurable);
+        await engine.init();
+        await rawContext.resume();
+
+        const engineMusic = await engine.decode('music', (await fetchBytes('/tests/media/tono-440.wav')).slice(0));
+        const engineEffect = await engine.decode('effect', (await fetchBytes('/tests/media/tono-220.wav')).slice(0));
+
+        engine.playback.playMusic({
+          assetId: 'music',
+          buffer: engineMusic,
+          fadeInSec: 0,
+          fadeOutSec: 0,
+        });
+        await wait(400);
+        const musicLevel = measureOutput(analyser);
+
+        report(
+          'El motor real produce audio en el dispositivo',
+          musicLevel > 0.01,
+          `RMS en la salida real=${musicLevel.toFixed(5)}`,
+        );
+
+        engine.playback.triggerPad({
+          padId: 'pad-1',
+          assetId: 'effect',
+          buffer: engineEffect,
+          volume: 0.8,
+          mode: 'once',
+        });
+        await wait(250);
+        const withEffect = measureOutput(analyser);
+
+        report(
+          'Un efecto suena encima de la música real',
+          engine.playback.getMusicState().status === 'playing' &&
+            engine.playback.getActiveEffectCount() === 1 &&
+            withEffect > 0.01,
+          `RMS=${withEffect.toFixed(5)} · estado=«${engine.playback.getMusicState().status}» · ` +
+            `efectos activos=${engine.playback.getActiveEffectCount()}`,
+        );
+
+        engine.playback.stopPad('pad-1', 0);
+        await wait(400);
+
+        engine.setMusicVolume(0);
+        await wait(300);
+        const mutedMusic = measureOutput(analyser);
+        engine.setMusicVolume(0.9);
+        await wait(300);
+        const restoredMusic = measureOutput(analyser);
+
+        report(
+          'El volumen de la música se controla de forma independiente',
+          mutedMusic < restoredMusic * 0.2,
+          `RMS con música a 0: ${mutedMusic.toFixed(5)} · restaurada: ${restoredMusic.toFixed(5)}`,
+        );
+
+        engine.stopAll();
+        await wait(400);
+        const afterStop = measureOutput(analyser);
+
+        report(
+          '«Detener todo» silencia la salida real del motor',
+          engine.playback.getMusicState().status === 'idle' &&
+            engine.playback.getActiveEffectCount() === 0 &&
+            afterStop < musicLevel * 0.25,
+          `RMS tras detener=${afterStop.toFixed(5)} · estado=«${engine.playback.getMusicState().status}»`,
+        );
+
+        await engine.dispose();
+        document.getElementById('results').dataset['done'] = '1';
+      }
+
+      run().catch((error) => {
+        report('Laboratorio de audio', false, String(error));
+        document.getElementById('results').dataset['done'] = '1';
+      });
+    </script>
+  </body>
+</html>
