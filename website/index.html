@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CueStage - Control de Música y Efectos de Sonido en Vivo</title>
+    <meta name="description" content="CueStage reproduce una música de fondo mientras disparas múltiples efectos de sonido manualmente. Ideal para presentaciones escolares, actuaciones teatrales, eventos y espectáculos.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        a {
+            color: #e0562d;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 80px 20px;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .hero p {
+            font-size: 1.3rem;
+            max-width: 700px;
+            margin: 0 auto 30px auto;
+            opacity: 0.9;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 32px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background-color: #e0562d;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #d04a20;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(224, 86, 45, 0.4);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: #fff;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 80px 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 50px;
+            color: #1a1a2e;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #eaeaea;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .feature-card h3 {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            color: #e0562d;
+        }
+
+        .feature-card p {
+            font-size: 0.95rem;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* Download Section */
+        .download-section {
+            background: #f8f9fa;
+            padding: 80px 20px;
+            text-align: center;
+        }
+
+        .download-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 40px;
+            color: #1a1a2e;
+        }
+
+        .download-options {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .download-card {
+            background: white;
+            border: 2px solid #eaeaea;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            min-width: 250px;
+            max-width: 300px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .download-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            border-color: #e0562d;
+        }
+
+        .download-card h3 {
+            font-size: 1.4rem;
+            margin-bottom: 10px;
+            color: #e0562d;
+        }
+
+        .download-card p {
+            font-size: 0.95rem;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .download-btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #e0562d;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+
+        .download-btn:hover {
+            background-color: #d04a20;
+        }
+
+        /* Features grid alternative */
+        .features-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .features-list li {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            font-size: 1rem;
+        }
+
+        .features-list li span {
+            color: #e0562d;
+            font-weight: bold;
+        }
+
+        /* Footer */
+        footer {
+            background: #1a1a2e;
+            color: white;
+            padding: 60px 20px 20px;
+            text-align: center;
+        }
+
+        .footer-content {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .footer-content h3 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .footer-content a {
+            color: #e0562d;
+            text-decoration: none;
+        }
+
+        .footer-content a:hover {
+            text-decoration: underline;
+        }
+
+        .footer-bottom {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .home h1 {
+                font-size: 2.5rem;
+            }
+
+            .live-transport {
+                grid-template-columns: 1fr;
+            }
+
+            .pad-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .transport-btn {
+                width: 55px;
+                height: 55px;
+                font-size: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .pad-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .home h1 {
+                font-size: 2rem;
+            }
+
+            .volume-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .volume-input {
+                min-width: auto;
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" width="32" height="32">
+                        <rect x="3" y="12" width="3.2" height="7" rx="1.6" fill="#E0562D" opacity="0.45"/>
+                        <rect x="9" y="8" width="3.2" height="11" rx="1.6" fill="#E0562D" opacity="0.75"/>
+                        <rect x="15" y="4" width="3.2" height="15" rx="1.6" fill="#E0562D"/>
+                        <circle cx="16.6" cy="2" r="1.4" fill="#F5C542"/>
+                        <path d="M3 21h18" stroke="#E0562D" stroke-width="1.4" stroke-linecap="round" opacity="0.4"/>
+                    </svg>
+                    <span style="font-weight: 700; font-size: 1.2rem; margin-left: 8px;">CueStage</span>
+                </div>
+                <nav class="nav-links">
+                    <a href="#features">Características</a>
+                    <a href="#download">Descargar</a>
+                </nav>
+            </div>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <h1>CueStage</h1>
+        <p>Control de música y efectos de sonido para presentaciones en vivo. Prepara tu guion, dispara efectos en el momento exacto y lleva el control total sobre el escenario.</p>
+        <div class="hero-actions">
+            <a href="#download" class="btn btn-primary">Descargar CueStage</a>
+            <a href="https://github.com/cuestage/cuestage" class="btn btn-secondary">Ver en GitHub</a>
+        </div>
+    </section>
+
+    <section class="features">
+        <h2>Características</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>🎵 Música Principal</h3>
+                <p>Reproduce una pista principal con controles de volumen, fundidos de entrada y salida, repetición y barra de progreso.</p>
+            </div>
+            <div class="feature-card">
+                <h3>🔊 Pads de Sonido</h3>
+                <p>Pads personalizables con nombre, color, icono y volumen individual. Modos: una vez, repetición y mantener pulsado.</p>
+            </div>
+            <div class="feature-card">
+                <h3>🎹 Atajos de Teclado</h3>
+                <p>Atajos configurables para disparar efectos y controlar la música sin apartar la vista del escenario.</p>
+            </div>
+            <div class="feature-card">
+                <h3>📝 Guion de Señales</h3>
+                <p>Organiza tu actuación con un guion paso a paso. Reproduce música, dispara efectos y avanza señal por señal.</p>
+            </div>
+            <div class="feature-card">
+                <h3>🛑 Detener Todo</h3>
+                <p>Botón de emergencia que detiene toda la reproducción al instante. Ideal para momentos de emergencia en vivo.</p>
+            </div>
+            <div class="feature-card">
+                <h3>💾 Proyectos Locales</h3>
+                <td>Proyectos guardados localmente en formato JSON versionado. Abre, guarda y recupera tus presentaciones en cualquier momento.</td>
+            </div>
+        </div>
+    </section>
+
+    <section id="download" class="download-section">
+        <h2>Descargar CueStage</h2>
+        <div class="download-options">
+            <div class="download-card">
+                <h3>💻 Instalador Windows</h3>
+                <p>Instalador completo para Windows 10 y 11. Incluye todo lo necesario para ejecutar CueStage.</p>
+                <a href="https://github.com/cuestage/cuestage/releases/latest/download/CueStage_0.1.0_x64-setup.exe" class="download-btn">Descargar Instalador</a>
+            </div>
+            <div class="download-card">
+                <h3>💾 Versión Portable</h3>
+                <p>No requiere instalación. Descarga, descomprime y ejecuta. Ideal para llevar en un USB.</p>
+                <a href="https://github.com/cuestage/cuestage/releases/latest/download/CueStage_portable.zip" class="download-btn">Descargar Portable</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <h2>CueStage</h2>
+            <p style="color: #888; margin-bottom: 20px;">Control de música y efectos de sonido para presentaciones en vivo.</p>
+            <div class="footer-actions">
+                <a href="#download" class="btn" style="background-color: #e0562d; color: white;">Descargar Ahora</a>
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/cuestage/cuestage">GitHub</a>
+                <a href="#contact">Contacto</a>
+            </div>
+            <div class="footer-bottom">
+                © 2026 CueStage. Todos los derechos reservados.
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
